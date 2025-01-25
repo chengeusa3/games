@@ -2,24 +2,24 @@ import pygame
 import random
 import sys
 
-# 初始化 Pygame
+# Initialize Pygame
 pygame.init()
 
-# 定义颜色
+# Define colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 
-# 设置游戏窗口
+# Set up game window
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 BLOCK_SIZE = 20
 GAME_SPEED = 15
 
-# 创建游戏窗口
+# Create game window
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-pygame.display.set_caption('贪吃蛇游戏')
+pygame.display.set_caption('Snake Game')
 clock = pygame.time.Clock()
 
 class Snake:
@@ -38,12 +38,12 @@ class Snake:
         x, y = self.direction
         new = (cur[0] + (x*BLOCK_SIZE), cur[1] + (y*BLOCK_SIZE))
         
-        # 检查是否撞墙
+        # Check if hit wall
         if (new[0] < 0 or new[0] >= WINDOW_WIDTH or 
             new[1] < 0 or new[1] >= WINDOW_HEIGHT):
             return False
         
-        # 检查是否撞到自己
+        # Check if hit itself
         if new in self.positions[3:]:
             return False
             
@@ -75,7 +75,7 @@ class Food:
     def render(self):
         pygame.draw.rect(screen, self.color, (self.position[0], self.position[1], BLOCK_SIZE, BLOCK_SIZE))
 
-# 定义方向
+# Define directions
 UP = (0, -1)
 DOWN = (0, 1)
 LEFT = (-1, 0)
@@ -85,26 +85,26 @@ def show_game_over_screen(screen, score):
     font_big = pygame.font.Font(None, 72)
     font_small = pygame.font.Font(None, 36)
     
-    # 游戏结束文本
-    game_over_text = font_big.render('游戏结束', True, WHITE)
+    # Game over text
+    game_over_text = font_big.render('GAME OVER', True, WHITE)
     game_over_rect = game_over_text.get_rect(center=(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 - 50))
     
-    # 最终得分文本
-    final_score_text = font_small.render(f'最终得分: {score}', True, WHITE)
+    # Final score text
+    final_score_text = font_small.render(f'Final Score: {score}', True, WHITE)
     final_score_rect = final_score_text.get_rect(center=(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 + 20))
     
-    # 重新开始提示文本
-    restart_text = font_small.render('按空格键重新开始', True, WHITE)
+    # Restart prompt text
+    restart_text = font_small.render('Press SPACE to Restart', True, WHITE)
     restart_rect = restart_text.get_rect(center=(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 + 70))
     
-    # 绘制所有文本
+    # Draw all text
     screen.fill(BLACK)
     screen.blit(game_over_text, game_over_rect)
     screen.blit(final_score_text, final_score_rect)
     screen.blit(restart_text, restart_rect)
     pygame.display.update()
     
-    # 等待玩家按空格键重新开始
+    # Wait for player to press space to restart
     waiting = True
     while waiting:
         for event in pygame.event.get():
@@ -140,29 +140,29 @@ def main():
                     snake.direction = RIGHT
 
         if game_active:
-            # 更新蛇的位置
+            # Update snake position
             if not snake.update():
                 game_active = False
                 show_game_over_screen(screen, snake.score)
-                # 重新开始游戏
+                # Restart game
                 snake.reset()
                 food.randomize_position()
                 game_active = True
                 continue
 
-            # 检查是否吃到食物
+            # Check if food is eaten
             if snake.get_head_position() == food.position:
                 snake.length += 1
                 snake.score += 1
                 food.randomize_position()
 
-            # 绘制游戏界面
+            # Draw game screen
             screen.fill(BLACK)
             snake.render()
             food.render()
             
-            # 显示分数
-            score_text = font.render(f'分数: {snake.score}', True, WHITE)
+            # Display score
+            score_text = font.render(f'Score: {snake.score}', True, WHITE)
             screen.blit(score_text, (10, 10))
 
             pygame.display.update()
