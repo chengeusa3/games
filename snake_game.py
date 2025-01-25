@@ -32,6 +32,7 @@ class Snake:
         self.positions = [(WINDOW_WIDTH//2, WINDOW_HEIGHT//2)]
         self.direction = random.choice([UP, DOWN, LEFT, RIGHT])
         self.color = GREEN
+        self.head_color = (0, 180, 0)  # 更深的绿色
         self.score = 0
 
     def get_head_position(self):
@@ -63,8 +64,92 @@ class Snake:
         self.score = 0
 
     def render(self):
-        for p in self.positions:
+        # Draw body
+        for p in self.positions[1:]:
             pygame.draw.rect(screen, self.color, (p[0], p[1], BLOCK_SIZE, BLOCK_SIZE))
+        
+        # Draw head with special shape
+        head_pos = self.positions[0]
+        x, y = head_pos
+        
+        # Draw base head square (slightly larger than body)
+        head_size = BLOCK_SIZE + 2
+        head_offset = 1
+        pygame.draw.rect(screen, self.head_color, 
+                        (x - head_offset, y - head_offset, head_size, head_size))
+        
+        # Draw eyes based on direction (larger and more visible)
+        eye_color = WHITE  # 白色眼睛
+        eye_size = 6
+        pupil_color = (0, 0, 0)  # 黑色瞳孔
+        pupil_size = 3
+        
+        if self.direction == RIGHT:
+            # Right facing eyes
+            pygame.draw.circle(screen, eye_color, (x + BLOCK_SIZE - 6, y + 6), eye_size)
+            pygame.draw.circle(screen, eye_color, (x + BLOCK_SIZE - 6, y + BLOCK_SIZE - 6), eye_size)
+            pygame.draw.circle(screen, pupil_color, (x + BLOCK_SIZE - 4, y + 6), pupil_size)
+            pygame.draw.circle(screen, pupil_color, (x + BLOCK_SIZE - 4, y + BLOCK_SIZE - 6), pupil_size)
+        elif self.direction == LEFT:
+            # Left facing eyes
+            pygame.draw.circle(screen, eye_color, (x + 6, y + 6), eye_size)
+            pygame.draw.circle(screen, eye_color, (x + 6, y + BLOCK_SIZE - 6), eye_size)
+            pygame.draw.circle(screen, pupil_color, (x + 4, y + 6), pupil_size)
+            pygame.draw.circle(screen, pupil_color, (x + 4, y + BLOCK_SIZE - 6), pupil_size)
+        elif self.direction == UP:
+            # Up facing eyes
+            pygame.draw.circle(screen, eye_color, (x + 6, y + 6), eye_size)
+            pygame.draw.circle(screen, eye_color, (x + BLOCK_SIZE - 6, y + 6), eye_size)
+            pygame.draw.circle(screen, pupil_color, (x + 6, y + 4), pupil_size)
+            pygame.draw.circle(screen, pupil_color, (x + BLOCK_SIZE - 6, y + 4), pupil_size)
+        elif self.direction == DOWN:
+            # Down facing eyes
+            pygame.draw.circle(screen, eye_color, (x + 6, y + BLOCK_SIZE - 6), eye_size)
+            pygame.draw.circle(screen, eye_color, (x + BLOCK_SIZE - 6, y + BLOCK_SIZE - 6), eye_size)
+            pygame.draw.circle(screen, pupil_color, (x + 6, y + BLOCK_SIZE - 4), pupil_size)
+            pygame.draw.circle(screen, pupil_color, (x + BLOCK_SIZE - 6, y + BLOCK_SIZE - 4), pupil_size)
+        
+        # Draw tongue (longer and forked)
+        tongue_color = (255, 0, 0)  # 更鲜艳的红色
+        tongue_length = 8
+        fork_size = 3
+        
+        if self.direction == RIGHT:
+            base_x = x + BLOCK_SIZE
+            base_y = y + BLOCK_SIZE//2
+            pygame.draw.line(screen, tongue_color, (base_x, base_y), 
+                           (base_x + tongue_length, base_y), 3)
+            pygame.draw.line(screen, tongue_color, (base_x + tongue_length, base_y),
+                           (base_x + tongue_length + fork_size, base_y - fork_size), 2)
+            pygame.draw.line(screen, tongue_color, (base_x + tongue_length, base_y),
+                           (base_x + tongue_length + fork_size, base_y + fork_size), 2)
+        elif self.direction == LEFT:
+            base_x = x
+            base_y = y + BLOCK_SIZE//2
+            pygame.draw.line(screen, tongue_color, (base_x, base_y), 
+                           (base_x - tongue_length, base_y), 3)
+            pygame.draw.line(screen, tongue_color, (base_x - tongue_length, base_y),
+                           (base_x - tongue_length - fork_size, base_y - fork_size), 2)
+            pygame.draw.line(screen, tongue_color, (base_x - tongue_length, base_y),
+                           (base_x - tongue_length - fork_size, base_y + fork_size), 2)
+        elif self.direction == UP:
+            base_x = x + BLOCK_SIZE//2
+            base_y = y
+            pygame.draw.line(screen, tongue_color, (base_x, base_y), 
+                           (base_x, base_y - tongue_length), 3)
+            pygame.draw.line(screen, tongue_color, (base_x, base_y - tongue_length),
+                           (base_x - fork_size, base_y - tongue_length - fork_size), 2)
+            pygame.draw.line(screen, tongue_color, (base_x, base_y - tongue_length),
+                           (base_x + fork_size, base_y - tongue_length - fork_size), 2)
+        elif self.direction == DOWN:
+            base_x = x + BLOCK_SIZE//2
+            base_y = y + BLOCK_SIZE
+            pygame.draw.line(screen, tongue_color, (base_x, base_y), 
+                           (base_x, base_y + tongue_length), 3)
+            pygame.draw.line(screen, tongue_color, (base_x, base_y + tongue_length),
+                           (base_x - fork_size, base_y + tongue_length + fork_size), 2)
+            pygame.draw.line(screen, tongue_color, (base_x, base_y + tongue_length),
+                           (base_x + fork_size, base_y + tongue_length + fork_size), 2)
 
 class Food:
     def __init__(self):
