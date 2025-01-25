@@ -1,6 +1,7 @@
 import pygame
 import random
 import sys
+from ui import GameUI
 
 # Initialize Pygame
 pygame.init()
@@ -21,6 +22,9 @@ GAME_SPEED = 15
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption('Snake Game')
 clock = pygame.time.Clock()
+
+# Initialize UI
+game_ui = GameUI(WINDOW_WIDTH, WINDOW_HEIGHT)
 
 class Snake:
     def __init__(self):
@@ -81,47 +85,9 @@ DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
 
-def show_game_over_screen(screen, score):
-    font_big = pygame.font.Font(None, 72)
-    font_small = pygame.font.Font(None, 36)
-    
-    # Game over text
-    game_over_text = font_big.render('GAME OVER', True, WHITE)
-    game_over_rect = game_over_text.get_rect(center=(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 - 50))
-    
-    # Final score text
-    final_score_text = font_small.render(f'Final Score: {score}', True, WHITE)
-    final_score_rect = final_score_text.get_rect(center=(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 + 20))
-    
-    # Restart prompt text
-    restart_text = font_small.render('Press SPACE to Restart', True, WHITE)
-    restart_rect = restart_text.get_rect(center=(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 + 70))
-    
-    # Draw all text
-    screen.fill(BLACK)
-    screen.blit(game_over_text, game_over_rect)
-    screen.blit(final_score_text, final_score_rect)
-    screen.blit(restart_text, restart_rect)
-    pygame.display.update()
-    
-    # Wait for player to press space to restart
-    waiting = True
-    while waiting:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    waiting = False
-                elif event.key == pygame.K_q:
-                    pygame.quit()
-                    sys.exit()
-
 def main():
     snake = Snake()
     food = Food()
-    font = pygame.font.Font(None, 36)
     game_active = True
 
     while True:
@@ -143,7 +109,7 @@ def main():
             # Update snake position
             if not snake.update():
                 game_active = False
-                show_game_over_screen(screen, snake.score)
+                game_ui.show_game_over_screen(screen, snake.score)
                 # Restart game
                 snake.reset()
                 food.randomize_position()
@@ -162,8 +128,7 @@ def main():
             food.render()
             
             # Display score
-            score_text = font.render(f'Score: {snake.score}', True, WHITE)
-            screen.blit(score_text, (10, 10))
+            game_ui.draw_score(screen, snake.score)
 
             pygame.display.update()
             clock.tick(GAME_SPEED)
