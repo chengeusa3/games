@@ -36,14 +36,21 @@ class Snake:
     def update(self):
         cur = self.get_head_position()
         x, y = self.direction
-        new = ((cur[0] + (x*BLOCK_SIZE)) % WINDOW_WIDTH, (cur[1] + (y*BLOCK_SIZE)) % WINDOW_HEIGHT)
+        new = (cur[0] + (x*BLOCK_SIZE), cur[1] + (y*BLOCK_SIZE))
+        
+        # 检查是否撞墙
+        if (new[0] < 0 or new[0] >= WINDOW_WIDTH or 
+            new[1] < 0 or new[1] >= WINDOW_HEIGHT):
+            return False
+        
+        # 检查是否撞到自己
         if new in self.positions[3:]:
             return False
-        else:
-            self.positions.insert(0, new)
-            if len(self.positions) > self.length:
-                self.positions.pop()
-            return True
+            
+        self.positions.insert(0, new)
+        if len(self.positions) > self.length:
+            self.positions.pop()
+        return True
 
     def reset(self):
         self.length = 1
