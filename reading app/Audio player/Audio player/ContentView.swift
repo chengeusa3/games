@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import NaturalLanguage
 
 struct StoryContent: Identifiable {
     let id = UUID()
@@ -74,6 +75,40 @@ struct ContentView: View {
     }
 }
 
+struct ModernStoryCard: View {
+    let story: Story
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Text(story.title)
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                Text("\(story.contents.count) 章")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            
+            if let firstChapter = story.contents.first,
+               let firstParagraph = firstChapter.paragraphs.first {
+                Text(firstParagraph)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : .white)
+                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
+    }
+}
+
 struct StoryContentsView: View {
     let story: Story
     @Binding var stories: [Story]
@@ -85,25 +120,39 @@ struct StoryContentsView: View {
         List {
             ForEach(story.contents) { content in
                 NavigationLink(destination: StoryDetailView(content: content)) {
-                    Text(content.title)
-                }
-                .contextMenu {
-                    Button(action: {
-                        selectedContent = content
-                        showingEditChapter = true
-                    }) {
-                        Label("编辑", systemImage: "pencil")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(content.title)
+                            .font(.headline)
+                        Text("\(content.paragraphs.count) 段")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
+                .swipeActions {
+                    Button(role: .destructive) {
+                        if let index = story.contents.firstIndex(where: { $0.id == content.id }) {
+                            if let storyIndex = stories.firstIndex(where: { $0.id == story.id }) {
+                                stories[storyIndex].contents.remove(at: index)
+                            }
+                        }
+                    } label: {
+                        Label("删除", systemImage: "trash")
+                    }
+                    
+                    Button {
+                        selectedContent = content
+                        showingEditChapter = true
+                    } label: {
+                        Label("编辑", systemImage: "pencil")
+                    }
+                    .tint(.blue)
+                }
             }
-            .onDelete(perform: deleteChapter)
         }
         .navigationTitle(story.title)
         .toolbar {
-            Button(action: {
-                showingAddChapter = true
-            }) {
-                Image(systemName: "plus")
+            Button(action: { showingAddChapter = true }) {
+                Label("添加章节", systemImage: "plus")
             }
         }
         .sheet(isPresented: $showingEditChapter) {
@@ -120,11 +169,63 @@ struct StoryContentsView: View {
             AddStoryView(stories: $stories, presetStoryTitle: story.title)
         }
     }
+}
+
+struct StoryDetailView: View {
+    let content: StoryContent
+    @State private var speechSynthesizer = AVSpeechSynthesizer()
+    @State private var isPlaying = false
+    @Environment(\.colorScheme) var colorScheme
     
-    func deleteChapter(at offsets: IndexSet) {
-        if let index = stories.firstIndex(where: { $0.id == story.id }) {
-            stories[index].contents.remove(atOffsets: offsets)
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                ForEach(content.paragraphs, id: \.self) { paragraph in
+                    Text(paragraph)
+                        .font(.body)
+                        .lineSpacing(8)
+                }
+            }
+            .padding()
+            
+            Divider()
+                .padding(.horizontal)
+            
+            Button(action: {
+                if isPlaying {
+                    speechSynthesizer.stopSpeaking(at: .immediate)
+                } else {
+                    speakContent()
+                }
+                isPlaying.toggle()
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.title2)
+                    Text(isPlaying ? "暂停朗读" : "开始朗读")
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 24)
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .clipShape(Capsule())
+            }
+            .padding()
         }
+        .navigationTitle(content.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func speakContent() {
+        let allText = content.paragraphs.joined(separator: "。")
+        let utterance = AVSpeechUtterance(string: allText)
+        utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN") // 设置中文语音
+        utterance.rate = 0.5 // 设置语速
+        utterance.pitchMultiplier = 1.0 // 设置音调
+        utterance.volume = 1.0 // 设置音量
+        
+        speechSynthesizer.delegate = nil // 重置代理
+        speechSynthesizer.speak(utterance)
     }
 }
 
@@ -144,15 +245,33 @@ struct EditChapterView: View {
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("章节信息")) {
-                    TextField("章节标题", text: $chapterTitle)
+            ScrollView {
+                VStack(spacing: 20) {
+                    Section {
+                        TextField("章节标题", text: $chapterTitle)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.horizontal)
+                    }
+                    
+                    Section {
+                        VStack(alignment: .leading) {
+                            Text("内容")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal)
+                            
+                            TextEditor(text: $content)
+                                .frame(minHeight: 300)
+                                .padding(8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                                .padding(.horizontal)
+                        }
+                    }
                 }
-                
-                Section(header: Text("内容")) {
-                    TextEditor(text: $content)
-                        .frame(height: 200)
-                }
+                .padding(.vertical)
             }
             .navigationTitle("编辑章节")
             .navigationBarItems(
@@ -169,7 +288,8 @@ struct EditChapterView: View {
     }
     
     private func saveChanges() {
-        let paragraphs = content.components(separatedBy: "\n")
+        let paragraphs = content
+            .components(separatedBy: CharacterSet.newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         
@@ -208,7 +328,7 @@ struct AddStoryView: View {
                 
                 Section(header: Text("内容")) {
                     TextEditor(text: $content)
-                        .frame(height: 200)
+                        .frame(height: UIScreen.main.bounds.height * 0.4)
                 }
             }
             .navigationTitle(storyTitle.isEmpty ? "添加新故事" : "添加新章节")
@@ -244,57 +364,6 @@ struct AddStoryView: View {
             )
             stories.append(newStory)
         }
-    }
-}
-
-struct StoryDetailView: View {
-    let content: StoryContent
-    @State private var speechSynthesizer = AVSpeechSynthesizer()
-    @State private var isPlaying = false
-    
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                ForEach(content.paragraphs, id: \.self) { paragraph in
-                    Text(paragraph)
-                        .padding(.horizontal)
-                }
-                
-                Button(action: {
-                    if isPlaying {
-                        speechSynthesizer.stopSpeaking(at: .immediate)
-                    } else {
-                        speakContent()
-                    }
-                    isPlaying.toggle()
-                }) {
-                    HStack {
-                        Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 24))
-                        Text(isPlaying ? "停止播放" : "开始播放")
-                    }
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(10)
-                }
-                .padding()
-            }
-            .padding(.vertical)
-        }
-        .navigationTitle(content.title)
-    }
-    
-    private func speakContent() {
-        let allText = content.paragraphs.joined(separator: "。")
-        let utterance = AVSpeechUtterance(string: allText)
-        utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN") // 设置中文语音
-        utterance.rate = 0.5 // 设置语速
-        utterance.pitchMultiplier = 1.0 // 设置音调
-        utterance.volume = 1.0 // 设置音量
-        
-        speechSynthesizer.delegate = nil // 重置代理
-        speechSynthesizer.speak(utterance)
     }
 }
 
