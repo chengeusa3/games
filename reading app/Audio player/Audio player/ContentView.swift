@@ -175,35 +175,28 @@ struct StoryDetailView: View {
     let content: StoryContent
     @State private var speechSynthesizer = AVSpeechSynthesizer()
     @State private var isPlaying = false
-    @State private var audioError: String?
-    @State private var showingError = false
-    @State private var selectedVoice: VoiceOption = .zhCN
     @State private var showingSettings = false
-    @State private var speechRate: Double = 1.0
+    @State private var speedValue: Double = 1.0  // 显示的速度值
     
-    enum VoiceOption: String, CaseIterable, Identifiable {
-        case zhCN = "普通话"
-        case zhTW = "台湾"
-        
-        var id: String { self.rawValue }
-        
-        func getVoice() -> AVSpeechSynthesisVoice? {
-            switch self {
-            case .zhCN:
-                return AVSpeechSynthesisVoice(language: "zh-CN")
-            case .zhTW:
-                return AVSpeechSynthesisVoice(language: "zh-TW")
+    // 将显示速度转换为实际的播放速率
+    private func displaySpeedToRate(_ speed: Double) -> Float {
+        // AVSpeechUtterance.rate 范围是 0~1，0.5 是正常速度
+        // 我们需要将 0.5x~2.0x 映射到合适的 rate 值
+        switch speed {
+        case 0.5: return 0.25   // 0.5x
+        case 1.0: return 0.5    // 1.0x
+        case 2.0: return 0.7    // 2.0x
+        default:
+            // 在范围内进行线性插值
+            if speed < 1.0 {
+                // 0.5x ~ 1.0x 的插值
+                let progress = (speed - 0.5) / 0.5
+                return Float(0.25 + (progress * 0.25))
+            } else {
+                // 1.0x ~ 2.0x 的插值
+                let progress = (speed - 1.0) / 1.0
+                return Float(0.5 + (progress * 0.2))
             }
-        }
-    }
-    
-    private func displayRateToActualRate(_ displayRate: Double) -> Float {
-        switch displayRate {
-        case 0.5: return 0.25
-        case 1.0: return 0.5
-        case 1.5: return 0.6
-        case 2.0: return 0.7
-        default: return Float(displayRate * 0.5)
         }
     }
     
@@ -221,11 +214,9 @@ struct StoryDetailView: View {
                         showingSettings = true
                     }) {
                         HStack {
-                            Image(systemName: "slider.horizontal.3")
-                            Text("播放设置")
+                            Image(systemName: "speedometer")
+                            Text("播放速度：\(String(format: "%.1fx", speedValue))")
                             Spacer()
-                            Text("\(selectedVoice.rawValue) · \(String(format: "%.1fx", speechRate))")
-                                .foregroundColor(.secondary)
                             Image(systemName: "chevron.right")
                         }
                         .padding(.vertical, 12)
@@ -237,10 +228,11 @@ struct StoryDetailView: View {
                     
                     Button(action: {
                         if isPlaying {
-                            stopSpeaking()
+                            speechSynthesizer.stopSpeaking(at: .immediate)
                         } else {
-                            startSpeaking()
+                            speakContent()
                         }
+                        isPlaying.toggle()
                     }) {
                         HStack {
                             Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
@@ -259,54 +251,24 @@ struct StoryDetailView: View {
             .padding()
         }
         .navigationTitle(content.title)
-        .onAppear {
-            setupAudioSession()
-        }
         .onDisappear {
-            stopSpeaking()
-        }
-        .alert("播放错误", isPresented: $showingError) {
-            Button("确定", role: .cancel) { }
-        } message: {
-            Text(audioError ?? "未知错误")
+            speechSynthesizer.stopSpeaking(at: .immediate)
+            isPlaying = false
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
                 Form {
-                    Section(header: Text("语音选择")) {
-                        ForEach(VoiceOption.allCases) { voice in
-                            Button(action: {
-                                selectedVoice = voice
-                                if isPlaying {
-                                    stopSpeaking()
-                                    startSpeaking()
-                                }
-                            }) {
-                                HStack {
-                                    Text(voice.rawValue)
-                                    Spacer()
-                                    if selectedVoice == voice {
-                                        Image(systemName: "checkmark")
-                                            .foregroundColor(.blue)
-                                    }
-                                }
-                            }
-                            .foregroundColor(.primary)
-                        }
-                    }
-                    
                     Section(header: Text("播放速度")) {
                         VStack {
-                            Slider(value: $speechRate, in: 0.5...2.0, step: 0.5) { _ in
-                                if isPlaying {
-                                    stopSpeaking()
-                                    startSpeaking()
-                                }
-                            }
+                            Slider(
+                                value: $speedValue,
+                                in: 0.5...2.0,
+                                step: 0.1
+                            )
                             HStack {
                                 Text("0.5x")
                                 Spacer()
-                                Text(String(format: "%.1fx", speechRate))
+                                Text(String(format: "%.1fx", speedValue))
                                     .foregroundColor(.blue)
                                 Spacer()
                                 Text("2.0x")
@@ -324,53 +286,14 @@ struct StoryDetailView: View {
         }
     }
     
-    private func setupAudioSession() {
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback)
-            try audioSession.setActive(true)
-        } catch {
-            audioError = "音频设置失败：\(error.localizedDescription)"
-            showingError = true
-        }
-    }
-    
-    private func startSpeaking() {
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setActive(true)
-            
-            let textToSpeak = content.paragraphs.joined(separator: "。")
-            let utterance = AVSpeechUtterance(string: textToSpeak)
-            
-            if let voice = selectedVoice.getVoice() {
-                utterance.voice = voice
-            }
-            
-            utterance.rate = displayRateToActualRate(speechRate)
-            utterance.pitchMultiplier = 1.0
-            utterance.volume = 1.0
-            
-            speechSynthesizer.delegate = nil
-            speechSynthesizer.speak(utterance)
-            isPlaying = true
-            
-        } catch {
-            audioError = "启动播放失败：\(error.localizedDescription)"
-            showingError = true
-            isPlaying = false
-        }
-    }
-    
-    private func stopSpeaking() {
-        speechSynthesizer.stopSpeaking(at: .immediate)
-        isPlaying = false
+    private func speakContent() {
+        let utterance = AVSpeechUtterance(string: content.paragraphs.joined(separator: "。"))
+        utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
+        utterance.rate = displaySpeedToRate(speedValue)
+        utterance.pitchMultiplier = 1.0
+        utterance.volume = 1.0
         
-        do {
-            try AVAudioSession.sharedInstance().setActive(false)
-        } catch {
-            print("停止音频会话失败：\(error.localizedDescription)")
-        }
+        speechSynthesizer.speak(utterance)
     }
 }
 
