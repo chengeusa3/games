@@ -177,6 +177,35 @@ struct StoryDetailView: View {
     @State private var isPlaying = false
     @State private var audioError: String?
     @State private var showingError = false
+    @State private var selectedVoice: VoiceOption = .zhCN
+    @State private var showingSettings = false
+    @State private var speechRate: Double = 1.0
+    
+    enum VoiceOption: String, CaseIterable, Identifiable {
+        case zhCN = "普通话"
+        case zhTW = "台湾"
+        
+        var id: String { self.rawValue }
+        
+        func getVoice() -> AVSpeechSynthesisVoice? {
+            switch self {
+            case .zhCN:
+                return AVSpeechSynthesisVoice(language: "zh-CN")
+            case .zhTW:
+                return AVSpeechSynthesisVoice(language: "zh-TW")
+            }
+        }
+    }
+    
+    private func displayRateToActualRate(_ displayRate: Double) -> Float {
+        switch displayRate {
+        case 0.5: return 0.25
+        case 1.0: return 0.5
+        case 1.5: return 0.6
+        case 2.0: return 0.7
+        default: return Float(displayRate * 0.5)
+        }
+    }
     
     var body: some View {
         ScrollView {
@@ -187,23 +216,43 @@ struct StoryDetailView: View {
                         .lineSpacing(8)
                 }
                 
-                Button(action: {
-                    if isPlaying {
-                        stopSpeaking()
-                    } else {
-                        startSpeaking()
+                VStack(spacing: 12) {
+                    Button(action: {
+                        showingSettings = true
+                    }) {
+                        HStack {
+                            Image(systemName: "slider.horizontal.3")
+                            Text("播放设置")
+                            Spacer()
+                            Text("\(selectedVoice.rawValue) · \(String(format: "%.1fx", speechRate))")
+                                .foregroundColor(.secondary)
+                            Image(systemName: "chevron.right")
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 24)
+                        .background(Color.gray.opacity(0.1))
+                        .foregroundColor(.primary)
+                        .clipShape(Capsule())
                     }
-                }) {
-                    HStack {
-                        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.title2)
-                        Text(isPlaying ? "暂停朗读" : "开始朗读")
+                    
+                    Button(action: {
+                        if isPlaying {
+                            stopSpeaking()
+                        } else {
+                            startSpeaking()
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                .font(.title2)
+                            Text(isPlaying ? "暂停朗读" : "开始朗读")
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 24)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
                     }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 24)
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .clipShape(Capsule())
                 }
                 .padding()
             }
@@ -220,6 +269,58 @@ struct StoryDetailView: View {
             Button("确定", role: .cancel) { }
         } message: {
             Text(audioError ?? "未知错误")
+        }
+        .sheet(isPresented: $showingSettings) {
+            NavigationStack {
+                Form {
+                    Section(header: Text("语音选择")) {
+                        ForEach(VoiceOption.allCases) { voice in
+                            Button(action: {
+                                selectedVoice = voice
+                                if isPlaying {
+                                    stopSpeaking()
+                                    startSpeaking()
+                                }
+                            }) {
+                                HStack {
+                                    Text(voice.rawValue)
+                                    Spacer()
+                                    if selectedVoice == voice {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            }
+                            .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    Section(header: Text("播放速度")) {
+                        VStack {
+                            Slider(value: $speechRate, in: 0.5...2.0, step: 0.5) { _ in
+                                if isPlaying {
+                                    stopSpeaking()
+                                    startSpeaking()
+                                }
+                            }
+                            HStack {
+                                Text("0.5x")
+                                Spacer()
+                                Text(String(format: "%.1fx", speechRate))
+                                    .foregroundColor(.blue)
+                                Spacer()
+                                Text("2.0x")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .navigationTitle("播放设置")
+                .navigationBarItems(trailing: Button("完成") {
+                    showingSettings = false
+                })
+            }
         }
     }
     
@@ -242,14 +343,11 @@ struct StoryDetailView: View {
             let textToSpeak = content.paragraphs.joined(separator: "。")
             let utterance = AVSpeechUtterance(string: textToSpeak)
             
-            // 尝试设置中文声音
-            if let voice = AVSpeechSynthesisVoice(language: "zh-CN") {
+            if let voice = selectedVoice.getVoice() {
                 utterance.voice = voice
-                print("使用中文声音：\(voice.language)")
             }
             
-            // 设置语音参数
-            utterance.rate = 0.4
+            utterance.rate = displayRateToActualRate(speechRate)
             utterance.pitchMultiplier = 1.0
             utterance.volume = 1.0
             
