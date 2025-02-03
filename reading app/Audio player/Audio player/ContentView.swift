@@ -175,7 +175,8 @@ struct StoryDetailView: View {
     let content: StoryContent
     @State private var speechSynthesizer = AVSpeechSynthesizer()
     @State private var isPlaying = false
-    @Environment(\.colorScheme) var colorScheme
+    @State private var audioError: String?
+    @State private var showingError = false
     
     var body: some View {
         ScrollView {
@@ -185,47 +186,93 @@ struct StoryDetailView: View {
                         .font(.body)
                         .lineSpacing(8)
                 }
-            }
-            .padding()
-            
-            Divider()
-                .padding(.horizontal)
-            
-            Button(action: {
-                if isPlaying {
-                    speechSynthesizer.stopSpeaking(at: .immediate)
-                } else {
-                    speakContent()
+                
+                Button(action: {
+                    if isPlaying {
+                        stopSpeaking()
+                    } else {
+                        startSpeaking()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.title2)
+                        Text(isPlaying ? "暂停朗读" : "开始朗读")
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 24)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .clipShape(Capsule())
                 }
-                isPlaying.toggle()
-            }) {
-                HStack(spacing: 12) {
-                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.title2)
-                    Text(isPlaying ? "暂停朗读" : "开始朗读")
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 24)
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .clipShape(Capsule())
+                .padding()
             }
             .padding()
         }
         .navigationTitle(content.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            setupAudioSession()
+        }
+        .onDisappear {
+            stopSpeaking()
+        }
+        .alert("播放错误", isPresented: $showingError) {
+            Button("确定", role: .cancel) { }
+        } message: {
+            Text(audioError ?? "未知错误")
+        }
     }
     
-    private func speakContent() {
-        let allText = content.paragraphs.joined(separator: "。")
-        let utterance = AVSpeechUtterance(string: allText)
-        utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN") // 设置中文语音
-        utterance.rate = 0.5 // 设置语速
-        utterance.pitchMultiplier = 1.0 // 设置音调
-        utterance.volume = 1.0 // 设置音量
+    private func setupAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback)
+            try audioSession.setActive(true)
+        } catch {
+            audioError = "音频设置失败：\(error.localizedDescription)"
+            showingError = true
+        }
+    }
+    
+    private func startSpeaking() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setActive(true)
+            
+            let textToSpeak = content.paragraphs.joined(separator: "。")
+            let utterance = AVSpeechUtterance(string: textToSpeak)
+            
+            // 尝试设置中文声音
+            if let voice = AVSpeechSynthesisVoice(language: "zh-CN") {
+                utterance.voice = voice
+                print("使用中文声音：\(voice.language)")
+            }
+            
+            // 设置语音参数
+            utterance.rate = 0.4
+            utterance.pitchMultiplier = 1.0
+            utterance.volume = 1.0
+            
+            speechSynthesizer.delegate = nil
+            speechSynthesizer.speak(utterance)
+            isPlaying = true
+            
+        } catch {
+            audioError = "启动播放失败：\(error.localizedDescription)"
+            showingError = true
+            isPlaying = false
+        }
+    }
+    
+    private func stopSpeaking() {
+        speechSynthesizer.stopSpeaking(at: .immediate)
+        isPlaying = false
         
-        speechSynthesizer.delegate = nil // 重置代理
-        speechSynthesizer.speak(utterance)
+        do {
+            try AVAudioSession.sharedInstance().setActive(false)
+        } catch {
+            print("停止音频会话失败：\(error.localizedDescription)")
+        }
     }
 }
 
