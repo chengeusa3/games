@@ -9,42 +9,34 @@ import SwiftUI
 import AVFoundation
 import NaturalLanguage
 
-struct StoryContent: Identifiable {
+struct StoryContent: Identifiable, Codable {
     let id = UUID()
     let title: String
     let paragraphs: [String]
 }
 
-struct Story: Identifiable {
+struct Story: Identifiable, Codable {
     let id = UUID()
     let title: String
     var contents: [StoryContent]
 }
 
 struct ContentView: View {
-    @State private var stories: [Story] = [
-        Story(
-            title: "小红帽",
-            contents: [
-                StoryContent(
-                    title: "第一章：进入森林",
-                    paragraphs: [
-                        "从前，有一个可爱的小女孩，她总是戴着奶奶送给她的红色帽子。",
-                        "有一天，妈妈让她去给生病的奶奶送食物。",
-                        "小红帽踏上了穿过森林的旅程。"
-                    ]
-                ),
-                StoryContent(
-                    title: "第二章：遇见大灰狼",
-                    paragraphs: [
-                        "在森林里，小红帽遇到了狡猾的大灰狼。",
-                        "大灰狼假装友好，询问她要去哪里。"
-                    ]
-                )
-            ]
-        )
-    ]
+    @AppStorage("savedStories") private var savedStoriesData: Data = Data()
+    @State private var stories: [Story] = []
     @State private var showingAddStory = false
+    
+    private func loadStories() {
+        if let decodedStories = try? JSONDecoder().decode([Story].self, from: savedStoriesData) {
+            stories = decodedStories
+        }
+    }
+    
+    private func saveStories() {
+        if let encodedStories = try? JSONEncoder().encode(stories) {
+            savedStoriesData = encodedStories
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -68,10 +60,14 @@ struct ContentView: View {
                 AddStoryView(stories: $stories)
             }
         }
+        .onAppear {
+            loadStories()
+        }
     }
     
     func deleteStory(at offsets: IndexSet) {
         stories.remove(atOffsets: offsets)
+        saveStories()
     }
 }
 
@@ -431,6 +427,11 @@ struct AddStoryView: View {
                 contents: [storyContent]
             )
             stories.append(newStory)
+        }
+        
+        // 保存到 UserDefaults
+        if let encodedStories = try? JSONEncoder().encode(stories) {
+            UserDefaults.standard.set(encodedStories, forKey: "savedStories")
         }
     }
 }
